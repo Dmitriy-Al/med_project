@@ -1,7 +1,18 @@
 
 <configuration>
 
-    <property name="HOME_LOG" value="C:\Users\admit\OneDrive\Рабочий стол\bot_program_logs.log"/>
+    <property name="HOME_LOG" value="C:\Mproject logs\bot_program_logs.log"/>
+
+
+
+
+
+
+
+
+
+
+
 
     <appender name="FILE-ROLLING" class="ch.qos.logback.core.rolling.RollingFileAppender">
         <file>${HOME_LOG}</file>

@@ -13,9 +13,9 @@ import java.util.List;
 
 public class GoogleAPIConnector {
 
-    private static final String CLIENT_ID = "1624197669786-qf5t18jtfrejmfmnha9h0uo29isd2p2h.apps.googleusercontent.com"; // поле устанавливается вручную
-    private static final String CLIENT_SECRET = "AGOCSPX-vuDr3zVZkAsmmtIYDy3YXDKhKu5K"; // поле устанавливается вручную
-    private static final String AUTHORIZATION_CODE = "ustas"; // поле устанавливается вручную, содержит любое уникальное значение// TODO: важно для регистрации программы менять имя поля!
+    private static final String CLIENT_ID = ""; // поле устанавливается вручную
+    private static final String CLIENT_SECRET = ""; // поле устанавливается вручную
+    private static final String AUTHORIZATION_CODE = ""; // поле устанавливается вручную, содержит любое уникальное значение//
 
     private static final String APPLICATION_NAME = "Google Calendar API";
     private static final JsonFactory JSON_FACTORY = JacksonFactory.getDefaultInstance();

@@ -32,11 +32,12 @@ import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 
+
 @Slf4j
 @Component
 public class TelegramBot extends TelegramLongPollingBot {
 
-    private DoctorRepository doctorRepository;
+    private final DoctorRepository doctorRepository;
 
     @Autowired
     public UserRepository userRepository;
@@ -112,10 +113,17 @@ public class TelegramBot extends TelegramLongPollingBot {
                     messageFromBot(chatId, "Меню настроек для данного профиля отсутствует");
                 }
                 case "Записаться на приём к врачу" -> {
-                    setDoctorsOnButtons(chatId, "*cd");
+                    if (userRepository.findById(chatId).isPresent()) {
+                        setDoctorsOnButtons(chatId, Strings.CHOOSE_DOCTOR);
+                    } else messageFromBot(chatId, "Пожалуйста зарегистрируйтесь, чтобы иметь возможность записаться к врачу");
                 }
                 case "Посмотреть мою запись" -> {
-                    Optional<User> users = userRepository.findById(update.getMessage().getChatId());
+                    if (userRepository.findById(chatId).isEmpty()) {
+                        messageFromBot(chatId, "Пожалуйста зарегистрируйтесь, чтобы иметь возможность просмотра записи");
+                        return;
+                    }
+
+                    Optional<User> users = userRepository.findById(chatId);
                     String userData = users.get().getLastname() + " " + users.get().getFirstname() + " " + users.get().getPatronymic() + "-" + "patient";
                     String fullName = users.get().getLastname() + " " + users.get().getFirstname() + " " + users.get().getPatronymic();
                     googleCalendar = new GoogleCalendarReceiver();
@@ -131,27 +139,27 @@ public class TelegramBot extends TelegramLongPollingBot {
                 case "Добавить врача" -> {
                     if (isAdmin(chatId)) {
                         BLOCK_DEFAULT_MESSAGE_VALUE.put(chatId, 5); // техническое поле, не-null значение которого блокирует отправку дефолтных сообщений бота
-                    } else messageFromBot(chatId, "Такая команда отсутствует");
+                    } else messageFromBot(chatId, Strings.COMMAND_DOES_NOT_EXIST);
                 }
                 case "Удалить врача" -> {
                     if (isAdmin(chatId)) {
-                        setDoctorsOnButtons(chatId, "*dd");
-                    } else messageFromBot(chatId, "Такая команда отсутствует");
+                        setDoctorsOnButtons(chatId, Strings.DELETE_DOCTOR);
+                    } else messageFromBot(chatId, Strings.COMMAND_DOES_NOT_EXIST);
                 }
                 case "Просмотр расписания врачей" -> {
                     if (isAdmin(chatId)) {
-                        setDoctorsOnButtons(chatId, "*ob");
-                    } else messageFromBot(chatId, "Такая команда отсутствует");
+                        setDoctorsOnButtons(chatId, Strings.OBSERVE_SCHEDULE);
+                    } else messageFromBot(chatId, Strings.COMMAND_DOES_NOT_EXIST);
                 }
                 case "Редактировать расписание врачей" -> {
                     if (isAdmin(chatId)) {
-                        setDoctorsOnButtons(chatId, "*ed");
-                    } else messageFromBot(chatId, "Такая команда отсутствует");
+                        setDoctorsOnButtons(chatId, Strings.EDITE_DOCTOR);
+                    } else messageFromBot(chatId, Strings.COMMAND_DOES_NOT_EXIST);
                 }
                 case "Меню для работы с базой пациентов" -> {
                     if (isAdmin(chatId)) {
                         workWithPatientMenu(chatId);
-                    } else messageFromBot(chatId, "Такая команда отсутствует");
+                    } else messageFromBot(chatId, Strings.COMMAND_DOES_NOT_EXIST);
                 }
                 case "Мой рабочий график" -> {
                     Optional<Doctor> doctor = doctorRepository.findById(chatId);
@@ -159,8 +167,7 @@ public class TelegramBot extends TelegramLongPollingBot {
                         String doctorScheduleFromDb = receiveDoctorScheduleFromDb(Objects.requireNonNull(receiveDoctorFromDb(chatId)));
                         messageFromBot(chatId, doctorScheduleFromDb);
                     } else {
-                        String text = "Такая команда отсутствует";
-                        messageFromBot(chatId, text);
+                        messageFromBot(chatId, Strings.COMMAND_DOES_NOT_EXIST);
                     }
                 }
                 case "Моя запись" -> {
@@ -175,12 +182,11 @@ public class TelegramBot extends TelegramLongPollingBot {
                 case "Записать пациента к врачу" -> {
                     if (isAdmin(chatId)) {
                         BLOCK_DEFAULT_MESSAGE_VALUE.put(chatId, 10);
-                    } else messageFromBot(chatId, "Такая команда отсутствует");
+                    } else messageFromBot(chatId, Strings.COMMAND_DOES_NOT_EXIST);
                 }
                 default -> {
                     if (BLOCK_DEFAULT_MESSAGE_VALUE.get(chatId) == null) {
-                        String text = "Такая команда отсутствует";
-                        messageFromBot(chatId, text);
+                        messageFromBot(chatId, Strings.COMMAND_DOES_NOT_EXIST);
                     }
                 }
             }
@@ -252,7 +258,7 @@ public class TelegramBot extends TelegramLongPollingBot {
                     messageFromBot(chatId, "Ошибка при вводе ФИО пациента");
                 } else {
                     tempData = messageText;
-                    setDoctorsOnButtons(chatId, "*cd");
+                    setDoctorsOnButtons(chatId, Strings.CHOOSE_DOCTOR);
                 }
             } else if (BLOCK_DEFAULT_MESSAGE_VALUE.get(chatId) == 12) {
                 findUser(chatId, messageText);
@@ -285,28 +291,27 @@ public class TelegramBot extends TelegramLongPollingBot {
             long chatId = update.getCallbackQuery().getMessage().getChatId();
             String callbackData = update.getCallbackQuery().getData();
 
-            if (callbackData.contains("*dd")) {
-                long doctorId = Long.parseLong(callbackData.replace("*dd", ""));
+            if (callbackData.contains(Strings.DELETE_DOCTOR)) {
+                long doctorId = Long.parseLong(callbackData.replace(Strings.DELETE_DOCTOR, ""));
                 doctorRepository.delete(Objects.requireNonNull(receiveDoctorFromDb(doctorId)));
                 editMessageTextExecute(receiveEditMessageText(chatId, messageId, "Доктор удалён из базы данных")); // для завершения метода вызывается метод
 
-            } else if (callbackData.contains("*ed")) { // если нажата кнопка %редактировать расписание, запускается меню выбора дня недели приёма, а выбранный доктор помещается в хэш-мап под индексом 0
-                String doctorId = callbackData.replace("*ed", "");
+            } else if (callbackData.contains(Strings.EDITE_DOCTOR)) { // если нажата кнопка %редактировать расписание, запускается меню выбора дня недели приёма, а выбранный доктор помещается в хэш-мап под индексом 0
+                String doctorId = callbackData.replace(Strings.EDITE_DOCTOR, "");
                 doctorWorkWeekKeyboard(chatId, messageId, doctorId);
 
-            } else if (callbackData.contains("%chooseday")) {// из меню выбора дня недели запускается меню установки времени приёма ("%chooseday" + i + " " + doctorId)
-                String[] dayAndDoctorId = callbackData.replace("%chooseday", "").split(" ");
+            } else if (callbackData.contains(Strings.CHOOSE_DAY)) {// из меню выбора дня недели запускается меню установки времени приёма ("%chooseday" + i + " " + doctorId)
+                String[] dayAndDoctorId = callbackData.replace(Strings.CHOOSE_DAY, "").split(" ");
                 tempDayOfWeek = Integer.parseInt(dayAndDoctorId[0]) + 1;
                 doctorWorkHourKeyboard(chatId, messageId, dayAndDoctorId[1]);
 
-            } else if (callbackData.contains("%choosetime")) { // запускает метод doctorWorkHourKeyboard для установки времени приёма врача в формате "00ч-00ч"
-                String[] timeAndDoctorId = callbackData.replace("%choosetime", "").split(" ");
+            } else if (callbackData.contains(Strings.CHOOSE_TIME)) { // запускает метод doctorWorkHourKeyboard для установки времени приёма врача в формате "00ч-00ч"
+                String[] timeAndDoctorId = callbackData.replace(Strings.CHOOSE_TIME, "").split(" ");
                 String doctorId = timeAndDoctorId[1];
 
                 if (tempHour == null) {
                     tempHour = timeAndDoctorId[0]; //  "-" + timeAndDoctorId[0];
                     editMessageTextExecute(receiveEditMessageText(chatId, messageId, ""));
-                    System.out.println("tempHour 1 = " + tempHour);
                     doctorWorkHourKeyboard(chatId, messageId, doctorId);
                 } else {
                     if (Integer.parseInt(tempHour) > Integer.parseInt(timeAndDoctorId[0])) {
@@ -316,27 +321,26 @@ public class TelegramBot extends TelegramLongPollingBot {
                     } else {
                         tempHour += "-" + timeAndDoctorId[0];
                         doctorWorkWeekKeyboard(chatId, messageId, doctorId);
-                        System.out.println("tempHour 2 = " + tempHour);
                         DOCTOR_SCHEDULE_LIST.put(tempDayOfWeek, tempHour);
                         tempHour = null;
                     }
                 }
 
-            } else if (callbackData.contains("*ob")) { // запускает метод просмотра расписания врача
-                long doctorId = Long.parseLong(callbackData.replace("*ob", ""));
+            } else if (callbackData.contains(Strings.OBSERVE_SCHEDULE)) { // запускает метод просмотра расписания врача
+                long doctorId = Long.parseLong(callbackData.replace(Strings.OBSERVE_SCHEDULE, ""));
                 String doctorScheduleFromDb = receiveDoctorScheduleFromDb(Objects.requireNonNull(receiveDoctorFromDb(doctorId)));
                 editMessageTextExecute(receiveEditMessageText(chatId, messageId, doctorScheduleFromDb));
 
-            } else if (callbackData.contains("*cd")) {
-                long doctorId = Long.parseLong(callbackData.replace("*cd", ""));
+            } else if (callbackData.contains(Strings.CHOOSE_DOCTOR)) {
+                long doctorId = Long.parseLong(callbackData.replace(Strings.CHOOSE_DOCTOR, ""));
                 doctorScheduleDaysButtons(Objects.requireNonNull(receiveDoctorFromDb(doctorId)), chatId, messageId);
 
-            } else if (callbackData.contains("%datebutton")) { // %datebutton2023-06-26 doctorId
-                String[] choseDayAndDoctorId = callbackData.replace("%datebutton", "").split(" "); // choseDayAndDoctorId = 2023-06-05, doctorId
+            } else if (callbackData.contains(Strings.DATE_BUTTON)) { // %datebutton2023-06-26 doctorId
+                String[] choseDayAndDoctorId = callbackData.replace(Strings.DATE_BUTTON, "").split(" "); // choseDayAndDoctorId = 2023-06-05, doctorId
                 doctorScheduleHoursButtons(choseDayAndDoctorId[0], chatId, messageId, choseDayAndDoctorId[1]);
 
-            } else if (callbackData.contains("%timebutton")) {
-                String[] choseDateTimeAndDoctorId = callbackData.replace("%timebutton", "").split("="); // "%timebutton" + 2023-06-15 + "T" + 10.30  + "=" + 123
+            } else if (callbackData.contains(Strings.TIME_BUTTON)) {
+                String[] choseDateTimeAndDoctorId = callbackData.replace(Strings.TIME_BUTTON, "").split("="); // "%timebutton" + 2023-06-15 + "T" + 10.30  + "=" + doctorId
                 if (!AVOID_REGISTER_COLLISION.containsValue(choseDateTimeAndDoctorId[0])) { // коллизия выбора времени записи
                     AVOID_REGISTER_COLLISION.put(chatId, choseDateTimeAndDoctorId[0]);
                     controlQuestionButton(choseDateTimeAndDoctorId[0], chatId, messageId, choseDateTimeAndDoctorId[1]);
@@ -344,33 +348,32 @@ public class TelegramBot extends TelegramLongPollingBot {
                     editMessageTextExecute(receiveEditMessageText(chatId, messageId, "Извините, это время уже недоступно"));
                 }
 
-            } else if (callbackData.contains("%iamsure")) {
+            } else if (callbackData.contains(Strings.I_AM_SURE)) {
                 if (AVOID_REGISTER_COLLISION.get(chatId) == null) {
                     editMessageTextExecute(receiveEditMessageText(chatId, messageId, "Время подтверждения истекло, попробуйте снова"));
                 } else {
-                    String[] dateTimeAndDoctorId = callbackData.replace("%iamsure", "").split(" ");//dateTimeForCalendar = 2023-06-12T10:00 doctorId
+                    String[] dateTimeAndDoctorId = callbackData.replace(Strings.I_AM_SURE, "").split(" ");//dateTimeForCalendar = 2023-06-12T10:00 doctorId
                     String dateTime = dateTimeAndDoctorId[0];
                     long doctorId = Long.parseLong(dateTimeAndDoctorId[1]);
                     if (isAdmin(chatId)) {
                         String fullName = tempData; // данные в поле tempData добавлены в строке 264 в блоке if blockDefaultMessageValue.get(chatId) == 16
-                        setNoteInGoogleCalendar(chatId, dateTime, doctorId, fullName);
+                        addNoteInGoogleCalendar(chatId, dateTime, doctorId, fullName);
                         tempData = null;
                         editMessageTextExecute(receiveEditMessageText(chatId, messageId, "Запись добавлена в календарь"));
                         AVOID_REGISTER_COLLISION.remove(chatId);
                     } else {
-                        setNoteInGoogleCalendar(chatId, dateTime, doctorId, "");
+                        addNoteInGoogleCalendar(chatId, dateTime, doctorId, "");
                         editMessageTextExecute(receiveEditMessageText(chatId, messageId, "Спасибо, мы будем ждать вас! Для уточнения деталей записи с вами может связаться администратор"));
                         AVOID_REGISTER_COLLISION.remove(chatId);
                     }
                 }
 
-            } else if (callbackData.contains("%foundpatient") && tempData == null) {
-                tempData = callbackData.replace("%foundpatient", "");
+            } else if (callbackData.contains(Strings.FOUND_PATIENT) && tempData == null) {
                 BLOCK_DEFAULT_MESSAGE_VALUE.put(chatId, 13);
                 editMessageTextExecute(receiveEditMessageText(chatId, messageId, "Введите текст сообщения, затем отправьте его получателю"));
 
-            } else if (callbackData.contains("%foundpatient") && tempData.equals("find user for getting info about him")) {
-                long chatIdFromString = Long.parseLong(callbackData.replace("%foundpatient", ""));
+            } else if (callbackData.contains(Strings.FOUND_PATIENT) && tempData.equals("find user for getting info about him")) {
+                long chatIdFromString = Long.parseLong(callbackData.replace(Strings.FOUND_PATIENT, ""));
                 Optional<User> user = userRepository.findById(chatIdFromString);
                 String infoAboutUser = user.toString().replace("Optional[", "").replace("]", "");
                 editMessageTextExecute(receiveEditMessageText(chatId, messageId, "Информация о пациенте:"));
@@ -378,12 +381,12 @@ public class TelegramBot extends TelegramLongPollingBot {
                 tempData = null;
                 BLOCK_DEFAULT_MESSAGE_VALUE.remove(chatId);
 
-            } else if (callbackData.contains("#d")) { // "#d" + map.getKey()
-                String date = callbackData.replace("#d", "");
+            } else if (callbackData.contains(Strings.BUTTON_FOR_DOCTOR)) { // "#d" + map.getKey()
+                String date = callbackData.replace(Strings.BUTTON_FOR_DOCTOR, "");
                 createEventTextForDoctor(chatId, messageId, date);
 
-            } else if (callbackData.contains("%+")) { // doctorId + " " + chatId
-                String[] userData = callbackData.replace("%+", "").split(" ");
+            } else if (callbackData.contains(Strings.REGISTER)) { // doctorId + " " + chatId
+                String[] userData = callbackData.replace(Strings.REGISTER, "").split(" ");
                 long doctorId = Long.parseLong(userData[0]);
                 long userChatId = Long.parseLong(userData[1]);
                 Doctor doctorFromDb = receiveDoctorFromDb(doctorId);
@@ -395,72 +398,65 @@ public class TelegramBot extends TelegramLongPollingBot {
                 editMessageTextExecute(receiveEditMessageText(chatId, messageId, fullName + " зарегистрирован как врач"));
                 messageFromBot(userChatId, newDoctor.getDoctorFirstname() + " " + newDoctor.getDoctorPatronymic() + ", вы зарегистрированы как врач");
 
-            } else if (callbackData.contains("%savechedule")) {
-                long doctorId = Long.parseLong(callbackData.replace("%savechedule", ""));
+            } else if (callbackData.contains(Strings.SAVE_SCHEDULE)) {
+                long doctorId = Long.parseLong(callbackData.replace(Strings.SAVE_SCHEDULE, ""));
                 setDoctorScheduleInDB(Objects.requireNonNull(receiveDoctorFromDb(doctorId)));
                 String doctorScheduleFromDb = receiveDoctorScheduleFromDb(Objects.requireNonNull(receiveDoctorFromDb(doctorId)));
                 DOCTOR_SCHEDULE_LIST.clear();
                 editMessageTextExecute(receiveEditMessageText(chatId, messageId, doctorScheduleFromDb));
 
-            } else if (callbackData.contains("%-")) {
-                long userChatId = Long.parseLong(callbackData.replace("%-", ""));
+            } else if (callbackData.contains(Strings.DO_NOT_REGISTER)) {
+                long userChatId = Long.parseLong(callbackData.replace(Strings.DO_NOT_REGISTER, ""));
                 messageFromBot(userChatId, "Ваша заявка на регистрацию отклонена");
                 editMessageTextExecute(receiveEditMessageText(chatId, messageId, "Заявка отклонена"));
 
-            } else if (callbackData.contains("@")) {
-                String userData = callbackData.replace("@", ""); // doctorId chatId
+            } else if (callbackData.contains(Strings.REG_AS_DOCTOR)) {
+                String userData = callbackData.replace(Strings.REG_AS_DOCTOR, ""); // doctorId chatId
                 requestToAdmin(userData);
                 editMessageTextExecute(receiveEditMessageText(chatId, messageId, "Пожалуйста, дождитесь одобрения заявки администратором"));
 
-            } else if (callbackData.contains("&")) { // doctor.getChatId() + " " + phoneNumber
-                String[] userData = callbackData.replace("&", "").split(" ");
+            } else if (callbackData.contains(Strings.REG_AS_PATIENT)) { // doctor.getChatId() + " " + phoneNumber
+                String[] userData = callbackData.replace(Strings.REG_AS_PATIENT, "").split(" ");
                 String phoneNumber = userData[1];
                 Doctor doctor = receiveDoctorFromDb(Long.parseLong(userData[0]));
                 String fullName = Objects.requireNonNull(doctor).getDoctorLastname() + " " + doctor.getDoctorFirstname() + " " + doctor.getDoctorPatronymic();
                 setUserInDB(chatId, fullName, phoneNumber);
                 editMessageTextExecute(receiveEditMessageText(chatId, messageId, "Спасибо за регистрацию!"));
 
-            } else if (callbackData.contains("%setvacation")) {
-                long doctorId = Long.parseLong(callbackData.replace("%setvacation", ""));
+            } else if (callbackData.contains(Strings.SET_VACATION)) {
+                long doctorId = Long.parseLong(callbackData.replace(Strings.SET_VACATION, ""));
                 TEMP_CHOOSE_DOCTOR.put(chatId, receiveDoctorFromDb(doctorId));
                 editMessageTextExecute(receiveEditMessageText(chatId, messageId, "Введите дату начала отпуска (больничного/отгула) год-месяц-число в формате 2023-05-09"));
                 BLOCK_DEFAULT_MESSAGE_VALUE.put(chatId, 15);
 
-            } else if (callbackData.contains("%deletevacation")) {
-                long doctorId = Long.parseLong(callbackData.replace("%deletevacation", ""));
+            } else if (callbackData.contains(Strings.DELETE_VACATION)) {
+                long doctorId = Long.parseLong(callbackData.replace(Strings.DELETE_VACATION, ""));
                 Doctor doctor = receiveDoctorFromDb(doctorId);
                 Objects.requireNonNull(doctor).setVacation(null);
                 doctorRepository.save(doctor);
                 editMessageTextExecute(receiveEditMessageText(chatId, messageId, "Даты отпусков удалены"));
 
-            } else if (callbackData.contains("%chooseanother")) {
-                long doctorId = Long.parseLong(callbackData.replace("%chooseanother", "")); // "%chooseanother" + doctorId
+            } else if (callbackData.contains(Strings.CHOOSE_ANOTHER)) {
+                long doctorId = Long.parseLong(callbackData.replace(Strings.CHOOSE_ANOTHER, "")); // "%chooseanother" + doctorId
                 doctorScheduleDaysButtons(Objects.requireNonNull(receiveDoctorFromDb(doctorId)), chatId, messageId);
             }
 
             switch (callbackData) {
                 // метод receiveEditMessage(chatId, messageId) создаёт и возвращает экземпляр EditMessage
                 // метод receiveEditMessageText(chatId, messageId, text) создаёт и возвращает экземпляр EditMessage текстом для продолжения диалога
-                case "%yesbutton" -> {
-                    String introduceText = "Введите свои данные следуя указаниям бота. Если в процессе ввода была допущена ошибка, завершите регистрацию, а затем удалите учётную запись " +
-                            "с помощью команды /deletedata и повторите заново процесс регистрации, используя команду /start " +
-                            "\nПожалуйста обратите внимание на то, что при вводе пользовательских данных буква <ё> прописывается как <е> \n\n\nВведите вашу фамилию и отправьте сообщение";
-                    editMessageTextExecute(receiveEditMessageText(chatId, messageId, introduceText));
+                case Strings.YES_BUTTON -> {
+                    editMessageTextExecute(receiveEditMessageText(chatId, messageId, Strings.INTRODUCE_TEXT));
                     BLOCK_DEFAULT_MESSAGE_VALUE.put(chatId, 1);
                 }
-                case "%cancelbutton" -> {
+                case Strings.CANCEL_BUTTON -> {
                     String text = "Регистрация отменена, в дальнейшем вы можете зарегистрироваться с помощью команды /start";
                     editMessageTextExecute(receiveEditMessageText(chatId, messageId, text));
                 }
-                case "%iamnotsure" -> {
+                case Strings.I_AM_NOT_SURE -> {
                     AVOID_REGISTER_COLLISION.remove(chatId);
                     editMessageTextExecute(receiveEditMessageText(chatId, messageId, "Запись отменена"));
                 }
-                case "%editedoctorshedule" -> {
-                    editMessageTextExecute(receiveEditMessageText(chatId, messageId, ""));
-                    setDoctorsOnButtons(chatId, "%editedoctor");
-                }
-                case "%alluserslist" -> {
+                case Strings.ALL_USER_LIST -> {
                     Optional<User> user = userRepository.findById(chatId);
                     String fullName = user.get().getLastname() + user.get().getFirstname() + user.get().getPatronymic();
                     if (fullName.equals(config.adminValidation)) {
@@ -474,16 +470,16 @@ public class TelegramBot extends TelegramLongPollingBot {
                         editMessageTextExecute(receiveEditMessageText(chatId, messageId, stringBuilder.toString()));
                     } else messageFromBot(chatId, "Такая команда отсутствует");
                 }
-                case "%infoaboutuser" -> {
+                case Strings.INFO_ABOUT_USER -> {
                     editMessageTextExecute(receiveEditMessageText(chatId, messageId, "Введите фамилию пациента и отправьте сообщение"));
                     tempData = "find user for getting info about him";
                     BLOCK_DEFAULT_MESSAGE_VALUE.put(chatId, 12);
                 }
-                case "%forallusersmessage" -> {
+                case Strings.FOR_ALL_USER_MESSAGE -> {
                     editMessageTextExecute(receiveEditMessageText(chatId, messageId, "Введите текст сообщения и отправьте его"));
                     BLOCK_DEFAULT_MESSAGE_VALUE.put(chatId, 14);
                 }
-                case "%usermessage" -> {
+                case Strings.USER_MESSAGE -> {
                     BLOCK_DEFAULT_MESSAGE_VALUE.put(chatId, 12);
                     editMessageTextExecute(receiveEditMessageText(chatId, messageId, "Введите фамилию/часть фамилии пациента и отправьте сообщение"));
 
@@ -510,11 +506,11 @@ public class TelegramBot extends TelegramLongPollingBot {
 
         InlineKeyboardButton yesButton = new InlineKeyboardButton();
         yesButton.setText("Да");
-        yesButton.setCallbackData("%yesbutton");
+        yesButton.setCallbackData(Strings.YES_BUTTON);
 
         InlineKeyboardButton cancelButton = new InlineKeyboardButton();
         cancelButton.setText("Отмена");
-        cancelButton.setCallbackData("%cancelbutton");
+        cancelButton.setCallbackData(Strings.CANCEL_BUTTON);
 
         rowInlineButton.add(yesButton);
         rowInlineButton.add(cancelButton);
@@ -657,16 +653,13 @@ public class TelegramBot extends TelegramLongPollingBot {
         if (doctorRepository.count() == 0) {
             messageFromBot(chatId, "Нет врачей для выбора");
         } else {
-            String chooseOrderText;
-            if (orderText.equals("*dd")) {
-                chooseOrderText = "Выберите врача, которого хотите удалить из базы";
-            } else if (orderText.equals("*ed")) {
-                chooseOrderText = "Выберите врача, расписание которого хотите редактировать";
-            } else if (orderText.equals("*ob")) {
-                chooseOrderText = "Выберите врача, расписание которого хотите посмотреть";
-            } else { // "*cd"
-                chooseOrderText = "Выберите врача, к которому желаете записаться";
-            }
+            String chooseOrderText = switch (orderText) {
+                case Strings.DELETE_DOCTOR -> "Выберите врача, которого хотите удалить из базы";
+                case Strings.EDITE_DOCTOR -> "Выберите врача, расписание которого хотите редактировать";
+                case Strings.OBSERVE_SCHEDULE -> "Выберите врача, расписание которого хотите посмотреть";
+                case Strings.CHOOSE_DOCTOR -> "Выберите врача, к которому желаете записаться";
+                default -> "Err";
+            };
 
             sendMessage.setText(chooseOrderText);
             InlineKeyboardMarkup inlineKeyboardMarkup = new InlineKeyboardMarkup();
@@ -677,7 +670,7 @@ public class TelegramBot extends TelegramLongPollingBot {
                 long doctorId = doctor.getChatId();
                 KeyboardWrapper keyboardWrapper = new KeyboardWrapper();
                 keyboardWrapper.setButtonSetText(buttonText);
-                keyboardWrapper.setButtonSetCallbackText(orderText + doctorId); // orderText == "*dd" / "*ed" / "*ob" / "*cd" + doctor id
+                keyboardWrapper.setButtonSetCallbackText(orderText + doctorId); // orderText == DELETE_DOCTOR / EDITE_DOCTOR / OBSERVE_SCHEDULE / CHOOSE_DOCTOR + doctor id
                 List<InlineKeyboardButton> list = new ArrayList<>(1);
                 list.add(keyboardWrapper.getKeyboardButton());
                 rowsInline.add(list);
@@ -691,14 +684,7 @@ public class TelegramBot extends TelegramLongPollingBot {
 
 
     private void doctorWorkWeekKeyboard(long chatId, long messageId, String doctorId) {
-        char pointer = 10148;
-        String text = "Меню редактирования расписания врача\n\n" + pointer + " Выбор дня недели - установка рабочих дней недели врача, устанавливаются только те дни, в которые происходит приём пациентов\n" + pointer +
-                " Сохранить настройки расписания рабочей недели - клавиша нажимается после установки всех рабочих дней недели врача. Внимание - всегда необходимо сохранять вновь созданное расписание. Все " +
-                "дни недели, для которых не было установлено время, сохраняются как не рабочие\n" + pointer + " Добавить дату отпуска - добавление даты отпуска/отгула/больничного. Внимание - во избежание " +
-                "регистрации пациентов в период отпуска/отгула/больничного врача, необходимо своевременно добавлять в программу эти данные\n" + pointer + " Удалить даты отпуска - удаляет все " +
-                "записи об отпусках/отгулах/больничных врача. Рекомендуется своевременно удалять записи о закончившихся отпусках для избежания путаницы в рабочем графике\n\nВыбор дня недели:";
-
-        EditMessageText editMessageText = receiveEditMessageText(chatId, messageId, text); // решение тестовое
+        EditMessageText editMessageText = receiveEditMessageText(chatId, messageId, Strings.MENU_DOCTOR_SCHEDULE_TEXT); // решение тестовое
         InlineKeyboardMarkup inlineKeyboardMarkup = new InlineKeyboardMarkup();
         List<List<InlineKeyboardButton>> rowsInline = new ArrayList<>(); // коллекция коллекций с горизонтальным рядом кнопок, создаёт вертикальный ряд кнопок
         List<InlineKeyboardButton> firstRowInlineButton = new ArrayList<>(); // коллекция с горизонтальным рядом кнопок
@@ -710,23 +696,23 @@ public class TelegramBot extends TelegramLongPollingBot {
         for (int i = 0; i < 7; i++) {
             KeyboardWrapper keyboardWrapper = new KeyboardWrapper();
             keyboardWrapper.setButtonSetText((daysOfWeek[i]));
-            keyboardWrapper.setButtonSetCallbackText("%chooseday" + i + " " + doctorId);
+            keyboardWrapper.setButtonSetCallbackText(Strings.CHOOSE_DAY + i + " " + doctorId);
             firstRowInlineButton.add(keyboardWrapper.getKeyboardButton());
         }
 
         InlineKeyboardButton saveButton = new InlineKeyboardButton();
         saveButton.setText("Сохранить настройки расписания рабочей недели");
-        saveButton.setCallbackData("%savechedule" + doctorId); // запись мз поля tempSetDoctor, для быстрого возврата к дате в расписании доктора из метода chooseTime()
+        saveButton.setCallbackData(Strings.SAVE_SCHEDULE + doctorId); // запись мз поля tempSetDoctor, для быстрого возврата к дате в расписании доктора из метода chooseTime()
         secondRowInlineButton.add(saveButton);
 
         InlineKeyboardButton setVacationButton = new InlineKeyboardButton();
         setVacationButton.setText("Добавить дату отпуска");
-        setVacationButton.setCallbackData("%setvacation" + doctorId);
+        setVacationButton.setCallbackData(Strings.SET_VACATION + doctorId);
         thirdRowInlineButton.add(setVacationButton);
 
         InlineKeyboardButton deleteVacationButton = new InlineKeyboardButton();
         deleteVacationButton.setText("Удалить даты отпуска");
-        deleteVacationButton.setCallbackData("%deletevacation" + doctorId);
+        deleteVacationButton.setCallbackData(Strings.DELETE_VACATION + doctorId);
         thirdRowInlineButton.add(deleteVacationButton);
 
         rowsInline.add(firstRowInlineButton); // размещение набора кнопок в вертикальном ряду
@@ -758,7 +744,7 @@ public class TelegramBot extends TelegramLongPollingBot {
         for (int i = 0; i < 14; i++) {
             KeyboardWrapper keyboardWrapper = new KeyboardWrapper();
             keyboardWrapper.setButtonSetText((String.valueOf(i + 8))); // часы работы врача берутся из цикла и выводится на кнопки, отсчёт с 8 часов
-            keyboardWrapper.setButtonSetCallbackText("%choosetime" + (i + 8) + " " + doctorId);
+            keyboardWrapper.setButtonSetCallbackText(Strings.CHOOSE_TIME + (i + 8) + " " + doctorId);
             if (i < 7) {
                 firstRowInlineButton.add(keyboardWrapper.getKeyboardButton());
             } else secondRowInlineButton.add(keyboardWrapper.getKeyboardButton());
@@ -788,7 +774,6 @@ public class TelegramBot extends TelegramLongPollingBot {
         newDoctor.setDoctorFirstname(FIRSTNAME.get(chatId));
         newDoctor.setDoctorPatronymic(PATRONYMIC.get(chatId));
         newDoctor.setSpeciality(doctorSpeciality);
-        System.out.println("doctorRepository.count() + 1 = " + doctorRepository.count() + 1);
         doctorRepository.save(newDoctor);
     }
 
@@ -831,12 +816,12 @@ public class TelegramBot extends TelegramLongPollingBot {
 
         InlineKeyboardButton sureButton = new InlineKeyboardButton();
         sureButton.setText("Подтвердить");
-        sureButton.setCallbackData("%iamsure" + dateTime + " " + doctorId); // запись мз поля tempSetDoctor, для быстрого возврата к дате в расписании доктора из метода chooseTime()
+        sureButton.setCallbackData(Strings.I_AM_SURE + dateTime + " " + doctorId); // запись мз поля tempSetDoctor, для быстрого возврата к дате в расписании доктора из метода chooseTime()
         firstRowInlineButton.add(sureButton);
 
         InlineKeyboardButton cancelButton = new InlineKeyboardButton();
         cancelButton.setText("Отменить");
-        cancelButton.setCallbackData("%iamnotsure");
+        cancelButton.setCallbackData(Strings.I_AM_NOT_SURE);
         firstRowInlineButton.add(cancelButton);
         rowsInline.add(firstRowInlineButton); // размещение набора кнопок в вертикальном ряду
 
@@ -848,16 +833,9 @@ public class TelegramBot extends TelegramLongPollingBot {
 
 
     private void workWithPatientMenu(long chatId) {
-        char pointer = 10148;
-
-        String text = "Меню для работы с зарегистрированными пользователями\n\n" + pointer +
-                " Список всех пациентов - получить список с полными данными всех зарегистрированных пользователей\n" +
-                pointer + " Сообщение для всех пациентов - отправка сообщения ВСЕМ зарегистрированным пользователям\n" +
-                pointer + " Посмотреть информацию о пациенте - полная информация (телефонный номер, фио, дата регистрации\n";
-
         SendMessage sendMessage = new SendMessage();
         sendMessage.setChatId(chatId);
-        sendMessage.setText(text);
+        sendMessage.setText(Strings.PATIENT_MENU_TEXT);
 
         InlineKeyboardMarkup inlineKeyboardMarkup = new InlineKeyboardMarkup();
         List<List<InlineKeyboardButton>> rowsInline = new ArrayList<>(); // коллекция коллекций с горизонтальным рядом кнопок, создаёт вертикальный ряд кнопок
@@ -869,19 +847,19 @@ public class TelegramBot extends TelegramLongPollingBot {
 
         InlineKeyboardButton firstButton = new InlineKeyboardButton(); // кнопка
         firstButton.setText("Список всех пациентов");
-        firstButton.setCallbackData("%alluserslist");
+        firstButton.setCallbackData(Strings.ALL_USER_LIST);
 
         InlineKeyboardButton secondButton = new InlineKeyboardButton(); // кнопка
         secondButton.setText("Написать сообщение пациенту");
-        secondButton.setCallbackData("%usermessage");
+        secondButton.setCallbackData(Strings.USER_MESSAGE);
 
         InlineKeyboardButton thirdButton = new InlineKeyboardButton(); // кнопка
         thirdButton.setText("Сообщение для всех пациентов");
-        thirdButton.setCallbackData("%forallusersmessage");
+        thirdButton.setCallbackData(Strings.FOR_ALL_USER_MESSAGE);
 
         InlineKeyboardButton fourthButton = new InlineKeyboardButton(); // кнопка
         fourthButton.setText("Посмотреть информацию о пациенте");
-        fourthButton.setCallbackData("%infoaboutuser");
+        fourthButton.setCallbackData(Strings.INFO_ABOUT_USER);
 
 
         firstRowInlineButton.add(firstButton);
@@ -1059,7 +1037,7 @@ public class TelegramBot extends TelegramLongPollingBot {
 
             KeyboardWrapper keyboardWrapper = new KeyboardWrapper();
             keyboardWrapper.setButtonSetText(dateFormatter.format(dateFromList));
-            keyboardWrapper.setButtonSetCallbackText("%datebutton" + ScheduleDays.get(i) + " " + doctor.getChatId());
+            keyboardWrapper.setButtonSetCallbackText(Strings.DATE_BUTTON + ScheduleDays.get(i) + " " + doctor.getChatId());
 
             if (i < 5) {
                 firstRowInlineButton.add(keyboardWrapper.getKeyboardButton());
@@ -1149,10 +1127,10 @@ public class TelegramBot extends TelegramLongPollingBot {
                 KeyboardWrapper keyboardWrapper = new KeyboardWrapper();
                 keyboardWrapper.setButtonSetText(beginOfWorkTime.toString());
                 if (i < 10) {
-                    keyboardWrapper.setButtonSetCallbackText("%timebutton" + choseDate + "T" + beginOfWorkTime + "=" + doctorId); // "%timebutton" + 2023-06-15 + "T" + 10.30  + "=" + 123
+                    keyboardWrapper.setButtonSetCallbackText(Strings.TIME_BUTTON + choseDate + "T" + beginOfWorkTime + "=" + doctorId); // "%timebutton" + 2023-06-15 + "T" + 10.30  + "=" + 123
 
                 } else
-                    keyboardWrapper.setButtonSetCallbackText("%timebutton" + choseDate + "T" + beginOfWorkTime + "=" + doctorId);
+                    keyboardWrapper.setButtonSetCallbackText(Strings.TIME_BUTTON + choseDate + "T" + beginOfWorkTime + "=" + doctorId);
                 firstRowInlineButton.add(keyboardWrapper.getKeyboardButton());
 
             } else if (!beginOfWorkTime.toString().equals(hours[iteration])) { // массив hours = "08:00 ; 10:30 ; 12:00 ; 13:30"
@@ -1160,10 +1138,10 @@ public class TelegramBot extends TelegramLongPollingBot {
                 keyboardWrapper.setButtonSetText(beginOfWorkTime.toString());
 
                 if (i < 10) {
-                    keyboardWrapper.setButtonSetCallbackText("%timebutton" + choseDate + "T" + beginOfWorkTime + "=" + doctorId); // "%timebutton" + 2023-06-15 + "T" + 10.30  + "=" + 123
+                    keyboardWrapper.setButtonSetCallbackText(Strings.TIME_BUTTON + choseDate + "T" + beginOfWorkTime + "=" + doctorId); // "%timebutton" + 2023-06-15 + "T" + 10.30  + "=" + 123
 
                 } else
-                    keyboardWrapper.setButtonSetCallbackText("%timebutton" + choseDate + "T" + beginOfWorkTime + "=" + doctorId);
+                    keyboardWrapper.setButtonSetCallbackText(Strings.TIME_BUTTON + choseDate + "T" + beginOfWorkTime + "=" + doctorId);
                 firstRowInlineButton.add(keyboardWrapper.getKeyboardButton());
 
             } else {
@@ -1172,7 +1150,7 @@ public class TelegramBot extends TelegramLongPollingBot {
         }
         InlineKeyboardButton secondButton = new InlineKeyboardButton();
         secondButton.setText("Выбрать другую дату");
-        secondButton.setCallbackData("%chooseanother" + doctorId);
+        secondButton.setCallbackData(Strings.CHOOSE_ANOTHER + doctorId);
         secondRowInlineButton.add(secondButton);
 
         rowsInline.add(firstRowInlineButton); // размещение набора кнопок в ряду
@@ -1208,7 +1186,7 @@ public class TelegramBot extends TelegramLongPollingBot {
                 long userChatId = user.getChatId();
                 KeyboardWrapper keyboardWrapper = new KeyboardWrapper();
                 keyboardWrapper.setButtonSetText(fullUserName);
-                keyboardWrapper.setButtonSetCallbackText("%foundpatient" + userChatId);
+                keyboardWrapper.setButtonSetCallbackText(Strings.FOUND_PATIENT + userChatId);
                 List<InlineKeyboardButton> list = new ArrayList<>(1);
                 list.add(keyboardWrapper.getKeyboardButton());
                 rowsInline.add(list);
@@ -1301,12 +1279,12 @@ public class TelegramBot extends TelegramLongPollingBot {
 
                 InlineKeyboardButton yesButton = new InlineKeyboardButton(); //385
                 yesButton.setText("Зарегистрировать");
-                yesButton.setCallbackData("%+" + userData); // doctorId chatId
+                yesButton.setCallbackData(Strings.REGISTER + userData); // doctorId chatId
                 firstRowInlineButton.add(yesButton);
 
                 InlineKeyboardButton noButton = new InlineKeyboardButton();
                 noButton.setText("Не регистрировать");
-                noButton.setCallbackData("%-" + chatId);
+                noButton.setCallbackData(Strings.DO_NOT_REGISTER + chatId);
                 firstRowInlineButton.add(noButton);
 
                 rowsInline.add(firstRowInlineButton); // размещение набора кнопок в ряду
@@ -1343,7 +1321,7 @@ public class TelegramBot extends TelegramLongPollingBot {
                     String buttonText = map.getKey();
                     KeyboardWrapper keyboardWrapper = new KeyboardWrapper();
                     keyboardWrapper.setButtonSetText(buttonText);
-                    keyboardWrapper.setButtonSetCallbackText("#d" + map.getKey());
+                    keyboardWrapper.setButtonSetCallbackText(Strings.BUTTON_FOR_DOCTOR + map.getKey());
                     if (iterations % 3 == 0) {
                         list = new ArrayList<>();
                         rowsInline.add(list);
@@ -1384,12 +1362,12 @@ public class TelegramBot extends TelegramLongPollingBot {
 
         InlineKeyboardButton doctorButton = new InlineKeyboardButton();
         doctorButton.setText("Врач");
-        doctorButton.setCallbackData("@" + doctor.getChatId() + " " + chatId);
+        doctorButton.setCallbackData(Strings.REG_AS_DOCTOR + doctor.getChatId() + " " + chatId);
         firstRowInlineButton.add(doctorButton);
 
         InlineKeyboardButton patientButton = new InlineKeyboardButton();
         patientButton.setText("Пациент");
-        patientButton.setCallbackData("&" + doctor.getChatId() + " " + phoneNumber);
+        patientButton.setCallbackData(Strings.REG_AS_PATIENT + doctor.getChatId() + " " + phoneNumber);
         firstRowInlineButton.add(patientButton);
 
         rowsInline.add(firstRowInlineButton); // размещение набора кнопок в ряду
@@ -1431,7 +1409,7 @@ public class TelegramBot extends TelegramLongPollingBot {
     }
 
 
-    private void setNoteInGoogleCalendar(long chatId, String dateTime, long doctorId, String fullName) { // максимум 33 печатных символа
+    private void addNoteInGoogleCalendar(long chatId, String dateTime, long doctorId, String fullName) { // максимум 33 печатных символа
         String userFullName;
         LocalDateTime localDateTime = LocalDateTime.now();
         LocalDateTime parseDate = LocalDateTime.parse(dateTime + ":00");
@@ -1480,7 +1458,7 @@ public class TelegramBot extends TelegramLongPollingBot {
     }
 
 
-    private SendMessage receiveCreatedMessage(long chatId, String messageText) { // метод создаёт и возвращает экземпляр изменённого сообщения // TODO
+    private SendMessage receiveCreatedMessage(long chatId, String messageText) { // метод создаёт и возвращает экземпляр изменённого сообщения
         SendMessage sendMessage = new SendMessage();
         sendMessage.setChatId(chatId);
         sendMessage.setText(messageText);
@@ -1563,28 +1541,6 @@ public class TelegramBot extends TelegramLongPollingBot {
 
 
     ///////////////////////////////////////////////////////////////________________TEST__________________///////////////////////////////////////////////////////////////////////////////////////
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 }

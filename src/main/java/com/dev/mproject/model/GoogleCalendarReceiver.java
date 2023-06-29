@@ -16,7 +16,7 @@ import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class GoogleCalendarReceiver {
-    public UserRepository userRepository;
+
     private List<Event> eventList;
 
 
@@ -97,5 +97,7 @@ public class GoogleCalendarReceiver {
         return dateTime;
     }
 
+
 }
+
 

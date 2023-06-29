@@ -24,7 +24,7 @@ public class CalendarEventSetter {
 
     public void setToCalendar(long time, String doctorAndPatientNames) throws IOException, GeneralSecurityException {
         // Load credentials from a file
-        GoogleCredential credential = GoogleCredential.fromStream(new FileInputStream("C:\\Users\\admit\\OneDrive\\Рабочий стол\\valiant.json"))
+        GoogleCredential credential = GoogleCredential.fromStream(new FileInputStream("C:\\api service key.json")) // "C:\\Users\\admit\\OneDrive\\Рабочий стол\\valiant.json"
                 .createScoped(List.of("https://www.googleapis.com/auth/calendar"));
 
         // Build the Calendar service
@@ -54,7 +54,7 @@ public class CalendarEventSetter {
 
 
         // Insert the event into the calendar
-        service.events().insert("developer@gmail.com", event).execute(); //TODO ВАЖНО! - "alimov.developer@gmail.com" - идентификатор календаря
+        service.events().insert("", event).execute(); //TODO ВАЖНО! - "alimov.developer@gmail.com" - идентификатор календаря
 
     }
 }
