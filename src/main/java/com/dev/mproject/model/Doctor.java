@@ -1,14 +1,13 @@
 package com.dev.mproject.model;
 import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import lombok.extern.slf4j.Slf4j;
 
-
+@Slf4j
 @lombok.Setter
 @lombok.Getter
 @Entity(name="doctorTable")
-public class Doctor {
+public class Doctor implements Cloneable{
 
 
     @Id
@@ -27,5 +26,15 @@ public class Doctor {
     private String SaturdaySchedule;
     private String SundaySchedule;
     private String vacation;
+
+    @Override
+    public Object clone(){
+        try {
+            return super.clone();
+        } catch (CloneNotSupportedException exc){
+            log.error("SendMessage execute error: " + exc.getMessage());
+        }
+        return null;
+    }
 
 }

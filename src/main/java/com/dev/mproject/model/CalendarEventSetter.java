@@ -54,7 +54,7 @@ public class CalendarEventSetter {
 
 
         // Insert the event into the calendar
-        service.events().insert("", event).execute(); //TODO ВАЖНО! - "alimov.developer@gmail.com" - идентификатор календаря
+        service.events().insert("alimov.developer@gmail.com", event).execute(); //TODO ВАЖНО! - "alimov.developer@gmail.com" - идентификатор календаря
 
     }
 }
