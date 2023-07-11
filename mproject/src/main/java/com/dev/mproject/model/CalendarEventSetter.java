@@ -17,26 +17,27 @@ import java.util.Date;
 import java.util.List;
 
 public class CalendarEventSetter {
-
+    /**
+     * Метод setToCalendar() получает параметры - время события и фио врача и пациента, создаёт событие и помещает
+     * его в Google Calendar
+     */
     private static final JsonFactory JSON_FACTORY = JacksonFactory.getDefaultInstance();
     private static final HttpTransport HTTP_TRANSPORT = new NetHttpTransport();
 
     public void setToCalendar(long time, String doctorAndPatientNames) throws IOException, GeneralSecurityException {
-        // Load credentials from a file
-        GoogleCredential credential = GoogleCredential.fromStream(new FileInputStream("C:\\api service key.json"))
+
+        GoogleCredential credential = GoogleCredential.fromStream(new FileInputStream(Config.PATH_FOR_IPI_SERVICE_KEY))
                 .createScoped(List.of("https://www.googleapis.com/auth/calendar"));
 
-        // Build the Calendar service
         Calendar service = new Calendar.Builder(HTTP_TRANSPORT, JSON_FACTORY, credential)
                 .setApplicationName(Config.APPLICATION_NAME)
                 .build();
 
-        // Create a new event
+        // Создание нового события
         Event event = new Event()
                 .setSummary(doctorAndPatientNames)
                 .setDescription("Пациент записался на приём в приложении");
-
-        // Set the start time of the event
+        // Время начала события
         Date date = new Date();
         Date startDate = new Date(date.getTime() + time);
         EventDateTime start = new EventDateTime()
@@ -44,16 +45,13 @@ public class CalendarEventSetter {
                 .setTimeZone("UTC");
         event.setStart(start);
 
-        // Set the end time of the event
-        Date endDate = new Date(startDate.getTime() + 5400000); // 1 hour 30 min after start time
+        // Время окончания события + 1.5. часа после времени начала
+        Date endDate = new Date(startDate.getTime() + 5400000);
         EventDateTime end = new EventDateTime()
                 .setDateTime(new com.google.api.client.util.DateTime(endDate))
                 .setTimeZone("UTC");
         event.setEnd(end);
-
-
-        // Insert the event into the calendar
-        service.events().insert(Config.CALENDAR_ID, event).execute(); // идентификатор календаря
-
+        // Добавление события в календарь
+        service.events().insert(Config.CALENDAR_ID, event).execute();
     }
 }

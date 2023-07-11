@@ -18,13 +18,14 @@ public class GoogleAPIConnector {
     private static final JsonFactory JSON_FACTORY = JacksonFactory.getDefaultInstance();
     private static final List<String> SCOPES = List.of(CalendarScopes.CALENDAR);
 
+    // Метод getCredentials() позволяет получить учётные данные приложения Google Calendar
     public Credential getCredentials(final HttpTransport HTTP_TRANSPORT) throws IOException {
         GoogleAuthorizationCodeFlow flow = new GoogleAuthorizationCodeFlow.Builder(
                 HTTP_TRANSPORT, JSON_FACTORY, Config.CLIENT_ID, Config.CLIENT_SECRET, SCOPES)
                 .setDataStoreFactory(new FileDataStoreFactory(new java.io.File("tokens")))
                 .setAccessType("offline")
                 .build();
-        return new AuthorizationCodeInstalledApp(flow, new LocalServerReceiver()).authorize(Config.AUTHORIZATION_CODE); // важный параметр авторизации
+        return new AuthorizationCodeInstalledApp(flow, new LocalServerReceiver()).authorize(Config.AUTHORIZATION_CODE);
     }
 
     public JsonFactory getJsonFactory(){
@@ -35,78 +36,3 @@ public class GoogleAPIConnector {
         return Config.APPLICATION_NAME;
     }
 }
-
-/*
-
-    //private static final String CLIENT_ID = "1018072133282-bbpievlb23diem0rfur38d66sjsc5hs9.apps.googleusercontent.com"; // поле устанавливается вручную
-    //private static final String CLIENT_SECRET = "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"; // поле устанавливается вручную
-    //private static final String AUTHORIZATION_CODE = "mpro"; // поле устанавливается вручную, содержит любое уникальное значение//
-    //private static final String APPLICATION_NAME = "Google Calendar API";
-
-    private static final String APPLICATION_NAME = "Google Calendar API";
-    private static final JsonFactory JSON_FACTORY = JacksonFactory.getDefaultInstance();
-    private static final List<String> SCOPES = Arrays.asList(CalendarScopes.CALENDAR_READONLY);
-    //private static final String CREDENTIALS_FILE_PATH = "C:\\Users\\admit\\OneDrive\\Рабочий стол\\key"; //  private static final String CREDENTIALS_FILE_PATH = "/credentials.json";
-
-    public Credential getCredentials(final HttpTransport HTTP_TRANSPORT) throws IOException {
-        GoogleAuthorizationCodeFlow flow = new GoogleAuthorizationCodeFlow.Builder(
-                HTTP_TRANSPORT, JSON_FACTORY, "521841621879-tko20rggg6k7emrvbkmgbq4nng4lkjv7.apps.googleusercontent.com", "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", SCOPES) // HTTP_TRANSPORT, JSON_FACTORY, "YOUR_CLIENT_ID", "YOUR_CLIENT_SECRET", SCOPES)
-                .setDataStoreFactory(new FileDataStoreFactory(new java.io.File("tokens")))
-                .setAccessType("offline")
-                .build();
-        return new AuthorizationCodeInstalledApp(flow, new LocalServerReceiver()).authorize("user");
-    }
-
-    public JsonFactory getJsonFactory(){
-        return JSON_FACTORY;
-    }
-
-    public String getApplicationName(){
-        return APPLICATION_NAME;
-    }
-
- */
-/////////////////////////////////////////////////////////////////////////////////////////////
-/*
-    private static final String APPLICATION_NAME = "Google Calendar API";
-    private static final JsonFactory JSON_FACTORY = JacksonFactory.getDefaultInstance();
-    private static final List<String> SCOPES = Arrays.asList(CalendarScopes.CALENDAR_READONLY);
-    private static final String CREDENTIALS_FILE_PATH = "/credentials.json";
-
-    private static Credential getCredentials(final HttpTransport HTTP_TRANSPORT) throws IOException {
-        GoogleAuthorizationCodeFlow flow = new GoogleAuthorizationCodeFlow.Builder(
-                HTTP_TRANSPORT, JSON_FACTORY, "YOUR_CLIENT_ID", "YOUR_CLIENT_SECRET", SCOPES)
-                .setDataStoreFactory(new FileDataStoreFactory(new java.io.File("tokens")))
-                .setAccessType("offline")
-                .build();
-        return new AuthorizationCodeInstalledApp(flow, new LocalServerReceiver()).authorize("user");
-    }
-
-    public static void main(String... args) throws IOException, GeneralSecurityException {
-        final NetHttpTransport HTTP_TRANSPORT = GoogleNetHttpTransport.newTrustedTransport();
-        Credential credential = getCredentials(HTTP_TRANSPORT);
-        Calendar service = new Calendar.Builder(HTTP_TRANSPORT, JSON_FACTORY, credential)
-                .setApplicationName(APPLICATION_NAME)
-                .build();
-        Events events = service.events().list("primary")
-                .setMaxResults(10)
-                .setTimeMin(new DateTime(System.currentTimeMillis()))
-                .setOrderBy("startTime")
-                .setSingleEvents(true)
-                .execute();
-        List<Event> items = events.getItems();
-        if (items.isEmpty()) {
-            System.out.println("No upcoming events found.");
-        } else {
-            System.out.println("Upcoming events:");
-            for (Event event : items) {
-                DateTime start = event.getStart().getDateTime();
-                if (start == null) {
-                    start = event.getStart().getDate();
-                }
-                System.out.printf("%s (%s)\n", event.getSummary(), start);
-            }
-
-
-
- */

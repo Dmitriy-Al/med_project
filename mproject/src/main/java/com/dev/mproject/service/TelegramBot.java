@@ -31,11 +31,32 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
-//    import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.KeyboardButton;
 
 @Slf4j
 @Component
 public class TelegramBot extends TelegramLongPollingBot {
+
+    /**
+     * Реализованы возможности:
+     * регистрация пользователя в роли администратора, врвча, пациента (пользователя).
+     * Учётная запись администратора позволяет добавлять врачей в базу данных,
+     * устанавливать рабочий график врача, записывать к врачу пациентов.
+     * Также администратор получает возможность просмотра базы пациентов, информации о
+     * конкретном пациенте, отправки сообщений пациенту/всем зарегистрированным пациентам
+     * Учётная запись врача может быть получена только с одобрения администратора и позволяет
+     * просматривать врачу просматривать свою запись и рабочий график.
+     * Учётная запись пациента (пользователя) позволяет пользователю записываться на приём к
+     * врачу и просматривать свою запись, а так же получать сообщенния о предстоящем приёме.
+     *
+     * Разрешение коллизий при одновременной работе с приложением нескольких пользователей
+     * реализовано с использованием HashMap, где ключом Long является chatId пользователя.
+     * Поэтапные действия (ввод фио) и действия связанные с отправкой сообщений, для которых
+     * отсутствуют зарезервированные строки-команды (вызывающие дефолт-сообщения программы
+     * "Такая команда отсутствует"), осуществляются путём блокировки дефолтных сообщений
+     * установкой не null значения map BLOCK_DEFAULT_MESSAGE_VALUE. Числовое значение также
+     * определяет то, какой метод/методы будут вызваны в процессе выполнения команд исходящих
+     * от пользователя.
+     */
 
     @Autowired
     public UserRepository userRepository;
@@ -132,11 +153,6 @@ public class TelegramBot extends TelegramLongPollingBot {
                         }
                     }
                 }
-                case "Добавить врача" -> {
-                    if (isAdmin(chatId)) {
-                        BLOCK_DEFAULT_MESSAGE_VALUE.put(chatId, 5); // техническое поле, не-null значение которого блокирует отправку дефолтных сообщений бота
-                    } else sendMessageWithScreenKeyboard(chatId, Strings.COMMAND_DOES_NOT_EXIST);
-                }
                 case "Удалить врача" -> {
                     if (isAdmin(chatId)) {
                         setDoctorsOnButtons(chatId, Strings.DELETE_DOCTOR);
@@ -175,6 +191,11 @@ public class TelegramBot extends TelegramLongPollingBot {
                         sendMessageWithScreenKeyboard(chatId, text);
                     }
                 }
+                case "Добавить врача" -> {
+                    if (isAdmin(chatId)) {
+                        BLOCK_DEFAULT_MESSAGE_VALUE.put(chatId, 5); // техническое поле, не-null значение которого блокирует отправку дефолтных сообщений бота
+                    } else sendMessageWithScreenKeyboard(chatId, Strings.COMMAND_DOES_NOT_EXIST);
+                }
                 case "Записать пациента к врачу" -> {
                     if (isAdmin(chatId)) {
                         BLOCK_DEFAULT_MESSAGE_VALUE.put(chatId, 10);
@@ -186,8 +207,11 @@ public class TelegramBot extends TelegramLongPollingBot {
                     }
                 }
             }
-            /* не null значение BLOCK_DEFAULT_MESSAGE_VALUE блокирует отправку сообщений "Такая команда отсутствует", кроме того, значение Integer определяет
-            логику запуска соответствующих методов */
+
+            /**
+             * Не null значение BLOCK_DEFAULT_MESSAGE_VALUE блокирует отправку COMMAND_DOES_NOT_EXIST сообщений ("Такая команда отсутствует"),
+             * кроме того, значение Integer определяет логику запуска соответствующих методов
+             */
             if (BLOCK_DEFAULT_MESSAGE_VALUE.get(chatId) == 1) { //         логика регистрации пользователя: после команды /start блокируется отправка дефолтных сообщений
                 LASTNAME.put(chatId, messageText); //                      после чего пользователь начинает поэтапно вводить данные, а hashMap использует в качестве ключей
                 BLOCK_DEFAULT_MESSAGE_VALUE.replace(chatId, 2); //         уникальный идентификатор chatId. Метод userRegistrationSteps "запоминает" пройденный этап регистрации
@@ -356,6 +380,12 @@ public class TelegramBot extends TelegramLongPollingBot {
                 BLOCK_DEFAULT_MESSAGE_VALUE.put(chatId, 13);
                 editMessageTextExecute(receiveEditMessageText(chatId, messageId, "Введите текст сообщения, затем отправьте его получателю"));
 
+            } else if (callbackData.contains(Strings.SET_VACATION)) {
+                long doctorId = Long.parseLong(callbackData.replace(Strings.SET_VACATION, ""));
+                TEMP_CHOOSE_DOCTOR.put(chatId, receiveDoctorFromDb(doctorId));
+                editMessageTextExecute(receiveEditMessageText(chatId, messageId, "Введите дату начала отпуска (больничного/отгула) год-месяц-число в формате 2023-05-09"));
+                BLOCK_DEFAULT_MESSAGE_VALUE.put(chatId, 15);
+
             } else if (callbackData.contains(Strings.FOUND_PATIENT) && tempData.equals("find user for getting info about him")) {
                 long chatIdFromString = Long.parseLong(callbackData.replace(Strings.FOUND_PATIENT, ""));
                 Optional<User> user = userRepository.findById(chatIdFromString);
@@ -408,12 +438,6 @@ public class TelegramBot extends TelegramLongPollingBot {
                 clearData(chatId);
                 editMessageTextExecute(receiveEditMessageText(chatId, messageId, "Спасибо за регистрацию!"));
 
-            } else if (callbackData.contains(Strings.SET_VACATION)) {
-                long doctorId = Long.parseLong(callbackData.replace(Strings.SET_VACATION, ""));
-                TEMP_CHOOSE_DOCTOR.put(chatId, receiveDoctorFromDb(doctorId));
-                editMessageTextExecute(receiveEditMessageText(chatId, messageId, "Введите дату начала отпуска (больничного/отгула) год-месяц-число в формате 2023-05-09"));
-                BLOCK_DEFAULT_MESSAGE_VALUE.put(chatId, 15);
-
             } else if (callbackData.contains(Strings.DELETE_VACATION)) {
                 long doctorId = Long.parseLong(callbackData.replace(Strings.DELETE_VACATION, ""));
                 Doctor doctor = receiveDoctorFromDb(doctorId);
@@ -427,11 +451,22 @@ public class TelegramBot extends TelegramLongPollingBot {
             }
 
             switch (callbackData) {
-                // метод receiveEditMessage(chatId, messageId) создаёт и возвращает экземпляр EditMessage
-                // метод receiveEditMessageText(chatId, messageId, text) создаёт и возвращает экземпляр EditMessage текстом для продолжения диалога
                 case Strings.YES_BUTTON -> {
                     editMessageTextExecute(receiveEditMessageText(chatId, messageId, Strings.INTRODUCE_TEXT));
                     BLOCK_DEFAULT_MESSAGE_VALUE.put(chatId, 1);
+                }
+                case Strings.USER_MESSAGE -> {
+                    BLOCK_DEFAULT_MESSAGE_VALUE.put(chatId, 12);
+                    editMessageTextExecute(receiveEditMessageText(chatId, messageId, "Введите фамилию/часть фамилии пациента и отправьте сообщение"));
+                }
+                case Strings.INFO_ABOUT_USER -> {
+                    editMessageTextExecute(receiveEditMessageText(chatId, messageId, "Введите фамилию пациента и отправьте сообщение"));
+                    tempData = "find user for getting info about him";
+                    BLOCK_DEFAULT_MESSAGE_VALUE.put(chatId, 12);
+                }
+                case Strings.FOR_ALL_USER_MESSAGE -> {
+                    editMessageTextExecute(receiveEditMessageText(chatId, messageId, "Введите текст сообщения и отправьте его"));
+                    BLOCK_DEFAULT_MESSAGE_VALUE.put(chatId, 14);
                 }
                 case Strings.CANCEL_BUTTON -> {
                     String text = "Регистрация отменена, в дальнейшем вы можете зарегистрироваться с помощью команды /start";
@@ -453,19 +488,6 @@ public class TelegramBot extends TelegramLongPollingBot {
                         stringBuilder.append("Всего пользователей = ").append(count);
                         editMessageTextExecute(receiveEditMessageText(chatId, messageId, stringBuilder.toString()));
                     } else sendMessageWithScreenKeyboard(chatId, "Такая команда отсутствует");
-                }
-                case Strings.INFO_ABOUT_USER -> {
-                    editMessageTextExecute(receiveEditMessageText(chatId, messageId, "Введите фамилию пациента и отправьте сообщение"));
-                    tempData = "find user for getting info about him";
-                    BLOCK_DEFAULT_MESSAGE_VALUE.put(chatId, 12);
-                }
-                case Strings.FOR_ALL_USER_MESSAGE -> {
-                    editMessageTextExecute(receiveEditMessageText(chatId, messageId, "Введите текст сообщения и отправьте его"));
-                    BLOCK_DEFAULT_MESSAGE_VALUE.put(chatId, 14);
-                }
-                case Strings.USER_MESSAGE -> {
-                    BLOCK_DEFAULT_MESSAGE_VALUE.put(chatId, 12);
-                    editMessageTextExecute(receiveEditMessageText(chatId, messageId, "Введите фамилию/часть фамилии пациента и отправьте сообщение"));
                 }
             }
         }
@@ -556,8 +578,8 @@ public class TelegramBot extends TelegramLongPollingBot {
         }
     }
 
-
-    private void doctorKeyBoard(SendMessage sendMessage) { // кнопки экранной клавиатуры врача
+    // кнопки экранной клавиатуры врача
+    private void doctorKeyBoard(SendMessage sendMessage) {
         ReplyKeyboardMarkup replyKeyboardMarkup = new ReplyKeyboardMarkup();
         replyKeyboardMarkup.setResizeKeyboard(true); // уменьшение кнопок экранной клавиатуры
         List<KeyboardRow> keyboardRows = new ArrayList<>();
@@ -569,8 +591,8 @@ public class TelegramBot extends TelegramLongPollingBot {
         sendMessage.setReplyMarkup(replyKeyboardMarkup);
     }
 
-
-    private void userKeyBoard(SendMessage sendMessage) { // кнопки экранной клавиатуры пациента
+    // кнопки экранной клавиатуры пациента
+    private void userKeyBoard(SendMessage sendMessage) {
         ReplyKeyboardMarkup replyKeyboardMarkup = new ReplyKeyboardMarkup();
         replyKeyboardMarkup.setResizeKeyboard(true);
         List<KeyboardRow> keyboardRows = new ArrayList<>();
@@ -584,8 +606,8 @@ public class TelegramBot extends TelegramLongPollingBot {
         sendMessage.setReplyMarkup(replyKeyboardMarkup);
     }
 
-
-    public void adminKeyBoard(SendMessage sendMessage) { // кнопки экранной клавиатуры администратора
+    // кнопки экранной клавиатуры администратора
+    public void adminKeyBoard(SendMessage sendMessage) {
         ReplyKeyboardMarkup replyKeyboardMarkup = new ReplyKeyboardMarkup();
         replyKeyboardMarkup.setResizeKeyboard(true);
         List<KeyboardRow> keyboardRows = new ArrayList<>();
@@ -719,9 +741,9 @@ public class TelegramBot extends TelegramLongPollingBot {
 
         EditMessageText editMessageText = receiveEditMessageText(chatId, messageId, doctorWorkDayText); // решение тестовое
         InlineKeyboardMarkup inlineKeyboardMarkup = new InlineKeyboardMarkup();
-        List<List<InlineKeyboardButton>> rowsInline = new ArrayList<>(); // коллекция коллекций с горизонтальным рядом кнопок, создаёт вертикальный ряд кнопок
-        List<InlineKeyboardButton> firstRowInlineButton = new ArrayList<>(); // коллекция с горизонтальным рядом кнопок
-        List<InlineKeyboardButton> secondRowInlineButton = new ArrayList<>(); // коллекция с горизонтальным рядом кнопок
+        List<List<InlineKeyboardButton>> rowsInline = new ArrayList<>();
+        List<InlineKeyboardButton> firstRowInlineButton = new ArrayList<>();
+        List<InlineKeyboardButton> secondRowInlineButton = new ArrayList<>();
 
         for (int i = 0; i < 14; i++) {
             InlineKeyboardButton keyboardButton = new InlineKeyboardButton();
@@ -732,8 +754,8 @@ public class TelegramBot extends TelegramLongPollingBot {
             } else secondRowInlineButton.add(keyboardButton);
         }
 
-        rowsInline.add(firstRowInlineButton); // размещение набора кнопок в вертикальном ряду
-        rowsInline.add(secondRowInlineButton); // размещение набора кнопок в вертикальном ряду
+        rowsInline.add(firstRowInlineButton);
+        rowsInline.add(secondRowInlineButton);
         inlineKeyboardMarkup.setKeyboard(rowsInline);
         editMessageText.setReplyMarkup(inlineKeyboardMarkup);
 
@@ -755,7 +777,7 @@ public class TelegramBot extends TelegramLongPollingBot {
         newDoctor.setDoctorLastname(LASTNAME.get(chatId));
         newDoctor.setDoctorFirstname(FIRSTNAME.get(chatId));
         newDoctor.setDoctorPatronymic(PATRONYMIC.get(chatId));
-        newDoctor.setSpeciality(tempData);  // doctorSpeciality = messageText.toLowerCase();
+        newDoctor.setSpeciality(tempData);
         doctorRepository.save(newDoctor);
     }
 
@@ -792,8 +814,8 @@ public class TelegramBot extends TelegramLongPollingBot {
         EditMessageText editMessageText = receiveEditMessageText(chatId, messageId, "Подтвердите, пожалуйста, запись к врачу");
         InlineKeyboardMarkup inlineKeyboardMarkup = new InlineKeyboardMarkup();
 
-        List<List<InlineKeyboardButton>> rowsInline = new ArrayList<>(); // коллекция коллекций с горизонтальным рядом кнопок, создаёт вертикальный ряд кнопок
-        List<InlineKeyboardButton> firstRowInlineButton = new ArrayList<>(); // коллекция с горизонтальным рядом кнопок верхнего ряда
+        List<List<InlineKeyboardButton>> rowsInline = new ArrayList<>();
+        List<InlineKeyboardButton> firstRowInlineButton = new ArrayList<>();
 
         InlineKeyboardButton sureButton = new InlineKeyboardButton();
         sureButton.setText("Подтвердить");
@@ -804,7 +826,7 @@ public class TelegramBot extends TelegramLongPollingBot {
         cancelButton.setText("Отменить");
         cancelButton.setCallbackData(Strings.I_AM_NOT_SURE);
         firstRowInlineButton.add(cancelButton);
-        rowsInline.add(firstRowInlineButton); // размещение набора кнопок в вертикальном ряду
+        rowsInline.add(firstRowInlineButton);
 
         inlineKeyboardMarkup.setKeyboard(rowsInline);
         editMessageText.setReplyMarkup(inlineKeyboardMarkup);
@@ -819,26 +841,26 @@ public class TelegramBot extends TelegramLongPollingBot {
         sendMessage.setText(Strings.PATIENT_MENU_TEXT);
 
         InlineKeyboardMarkup inlineKeyboardMarkup = new InlineKeyboardMarkup();
-        List<List<InlineKeyboardButton>> rowsInline = new ArrayList<>(); // коллекция коллекций с горизонтальным рядом кнопок, создаёт вертикальный ряд кнопок
+        List<List<InlineKeyboardButton>> rowsInline = new ArrayList<>();
 
-        List<InlineKeyboardButton> firstRowInlineButton = new ArrayList<>(); // коллекция с горизонтальным рядом кнопок верхнего ряда
+        List<InlineKeyboardButton> firstRowInlineButton = new ArrayList<>();
         List<InlineKeyboardButton> secondRowInlineButton = new ArrayList<>();
         List<InlineKeyboardButton> thirdRowInlineButton = new ArrayList<>();
         List<InlineKeyboardButton> fourthRowInlineButton = new ArrayList<>();
 
-        InlineKeyboardButton firstButton = new InlineKeyboardButton(); // кнопка
+        InlineKeyboardButton firstButton = new InlineKeyboardButton();
         firstButton.setText("Список всех пациентов");
         firstButton.setCallbackData(Strings.ALL_USER_LIST);
 
-        InlineKeyboardButton secondButton = new InlineKeyboardButton(); // кнопка
+        InlineKeyboardButton secondButton = new InlineKeyboardButton();
         secondButton.setText("Написать сообщение пациенту");
         secondButton.setCallbackData(Strings.USER_MESSAGE);
 
-        InlineKeyboardButton thirdButton = new InlineKeyboardButton(); // кнопка
+        InlineKeyboardButton thirdButton = new InlineKeyboardButton();
         thirdButton.setText("Сообщение для всех пациентов");
         thirdButton.setCallbackData(Strings.FOR_ALL_USER_MESSAGE);
 
-        InlineKeyboardButton fourthButton = new InlineKeyboardButton(); // кнопка
+        InlineKeyboardButton fourthButton = new InlineKeyboardButton();
         fourthButton.setText("Посмотреть информацию о пациенте");
         fourthButton.setCallbackData(Strings.INFO_ABOUT_USER);
 
@@ -848,9 +870,9 @@ public class TelegramBot extends TelegramLongPollingBot {
         thirdRowInlineButton.add(thirdButton);
         fourthRowInlineButton.add(fourthButton);
 
-        rowsInline.add(firstRowInlineButton); // размещение набора кнопок в вертикальном ряду
-        rowsInline.add(secondRowInlineButton); // размещение набора кнопок в вертикальном ряду
-        rowsInline.add(thirdRowInlineButton); // размещение набора кнопок в вертикальном ряду
+        rowsInline.add(firstRowInlineButton);
+        rowsInline.add(secondRowInlineButton);
+        rowsInline.add(thirdRowInlineButton);
         rowsInline.add(fourthRowInlineButton);
 
         inlineKeyboardMarkup.setKeyboard(rowsInline);
@@ -1123,7 +1145,7 @@ public class TelegramBot extends TelegramLongPollingBot {
                     keyboardFirstButton.setCallbackData(Strings.TIME_BUTTON + choseDate + "T" + beginOfWorkTime + "=" + doctorId);
                 firstRowInlineButton.add(keyboardFirstButton);
 
-            } else if (!beginOfWorkTime.toString().equals(hours[iteration])) { // массив hours = "08:00 ; 10:30 ; 12:00 ; 13:30"
+            } else if (!beginOfWorkTime.toString().equals(hours[iteration])) { // массив hours = "08:00 , 10:30 , 12:00 , 13:30"
                 InlineKeyboardButton keyboardSecondButton = new InlineKeyboardButton();
                 keyboardSecondButton.setText(beginOfWorkTime.toString());
 
@@ -1151,7 +1173,7 @@ public class TelegramBot extends TelegramLongPollingBot {
         editMessageTextExecute(editMessageText);
     }
 
-
+    // Сообщение для всех пациентов
     private void messageForAllUsers(String text) {
         Iterable<User> users = userRepository.findAll();
         for (User user : users) {
@@ -1159,7 +1181,7 @@ public class TelegramBot extends TelegramLongPollingBot {
         }
     }
 
-
+    // Список из кнопок с ФИО пользователей
     private void findUser(long chatId, String lastName) {
         SendMessage sendMessage = receiveCreatedMessage(chatId, "Выберите пациента из списка");
         InlineKeyboardMarkup inlineKeyboardMarkup = new InlineKeyboardMarkup();
@@ -1188,7 +1210,7 @@ public class TelegramBot extends TelegramLongPollingBot {
         }
     }
 
-
+    // Метод отмечает дни отпуска как нерабочие в методе doctorScheduleDaysButtons
     private HashMap<String, String> doctorVacationDaysCheck(Doctor doctor) {
         String setText = "<------------------------the string with length over doctors work time---------------------------->";
         String[] doctorVacation;
@@ -1216,7 +1238,7 @@ public class TelegramBot extends TelegramLongPollingBot {
         return vacationTime;
     }
 
-
+    // Добавление отпуска врача
     private void setDoctorVacation(long chatId, String messageText) {
         try {
             LocalDate firstDate = LocalDate.parse(tempData);
@@ -1364,7 +1386,9 @@ public class TelegramBot extends TelegramLongPollingBot {
         sendMessageExecute(sendMessage);
     }
 
-
+    // Добавление пациента в бд двумя различными путями в случае:
+    // 1. если ФИО совпадают с ФИО врача из DoctorRepository
+    // 2. простая регистрация пользователя
     private void setUserInDB(long chatId, String userData, String phone) {
         User user = new User();
         String[] data = userData.split(" ");
@@ -1452,7 +1476,7 @@ public class TelegramBot extends TelegramLongPollingBot {
         return sendMessage;
     }
 
-    // метод создаёт и возвращает экземпляр изменённого сообщения с вновь добавленным текстом
+    // метод создаёт и возвращает экземпляр изменённого сообщения
     private EditMessageText receiveEditMessageText(long chatId, long messageId, String messageText) {
         EditMessageText editMessageText = new EditMessageText();
         editMessageText.setChatId(chatId);
@@ -1489,7 +1513,7 @@ public class TelegramBot extends TelegramLongPollingBot {
         return false;
     }
 
-    // Сброс данных из map
+    // Удаление данных из map после регистрации пользователя/врача
     private void clearData(long chatId) {
         BLOCK_DEFAULT_MESSAGE_VALUE.remove(chatId);
         LASTNAME.remove(chatId);

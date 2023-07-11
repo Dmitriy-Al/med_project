@@ -20,8 +20,9 @@ public class GoogleCalendarReceiver {
 
     private List<Event> eventList;
 
+    // Соединение с GoogleCalendar
     private void getCalendarInfo() throws IOException, GeneralSecurityException {
-        GoogleAPIConnector connector = new GoogleAPIConnector(); // Соединение с GoogleCalendar
+        GoogleAPIConnector connector = new GoogleAPIConnector();
 
         final NetHttpTransport HTTP_TRANSPORT = GoogleNetHttpTransport.newTrustedTransport();
         Credential credential = connector.getCredentials(HTTP_TRANSPORT);
@@ -37,7 +38,7 @@ public class GoogleCalendarReceiver {
         eventList = events.getItems();
     }
 
-
+    // Получение событий из Google Calendar
     public TreeMap<String, String> receiveFromGoogleCalendar(String userData) {
         try {
             this.getCalendarInfo();
@@ -47,11 +48,11 @@ public class GoogleCalendarReceiver {
             log.error("SendMessage execute error: " + exc.getMessage());
             throw new RuntimeException(exc);
         }
-
+        // Первая часть строки userData - фио пользователя, вторая часть строки - информация от кого (доктор, админ, пациент) исходит запрос
         String[] fullNameAndStatus = userData.split("-");
         TreeMap<String, String> dateTime = new TreeMap<>();
-
-        if (!(eventList.isEmpty())) { // если коллекция List<Event> eventList не пуста, в цикле for эвенты календаря разбираются на фио врача, пациента и дату события
+        // если коллекция List<Event> eventList не пуста, в цикле for события из календаря разбираются на фио врача, пациента и дату события
+        if (!(eventList.isEmpty())) {
             StringBuilder doctorScheduleTime = new StringBuilder();
 
             for (Event event : eventList) {
@@ -61,15 +62,15 @@ public class GoogleCalendarReceiver {
                 }
 
                 String[] text = event.getSummary().split("-");
-                String[] time = eventTime.toString().replace('T', ' ').replace(':', ' ').split(" "); // разбор строки даты и времени на составляющие
+                String[] time = eventTime.toString().replace('T', ' ').replace(':', ' ').split(" ");
 
                 String doctorFullName = text[0].trim(); // фио врача
                 String patientFullName = text[1].trim(); // фио пациента
-                String date = time[0]; // только дата события
-                String hourAndMinute = time[1] + ":" + time[2] + " "; // только часы и минуты события
+                String date = time[0]; // дата события
+                String hourAndMinute = time[1] + ":" + time[2] + " "; // часы и минуты события
 
                 if(fullNameAndStatus[0].equalsIgnoreCase(doctorFullName) && fullNameAndStatus[1].equals("doctor")) {
-                    if (dateTime.get(date) == null){ // логика заполнения Map
+                    if (dateTime.get(date) == null){
                         doctorScheduleTime.setLength(0);
                         dateTime.put(date, hourAndMinute);
                     } else {
@@ -79,7 +80,7 @@ public class GoogleCalendarReceiver {
                     dateTime.put(date, doctorScheduleTime.toString());
 
                 } else if (fullNameAndStatus[0].equalsIgnoreCase(doctorFullName) && fullNameAndStatus[1].equals("doctorschadule")){
-                    if (dateTime.get(date) == null){ // логика заполнения Map
+                    if (dateTime.get(date) == null){
                         doctorScheduleTime.setLength(0);
                         dateTime.put(date, hourAndMinute + "  пациент " + patientFullName + "-");
                     } else {
