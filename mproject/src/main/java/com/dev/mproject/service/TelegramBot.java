@@ -105,7 +105,7 @@ public class TelegramBot extends TelegramLongPollingBot {
                     Optional<Doctor> doctor = doctorRepository.findById(update.getMessage().getChatId());
                     if (user.isEmpty() && doctor.isEmpty()) {
                         BLOCK_DEFAULT_MESSAGE_VALUE.remove(chatId); // если по какой-то причине регистрация была прервана и начата заново, процесс начинается с начала
-                        greetMessage(chatId); // если пользователь не зарегистрирован, вызывается метод блокирующий отправку ботом дефолтных сообщений, чтобы пользователь вводил данные без получения default message
+                        greetMessage(chatId);
                     } else {
                         sendMessageWithScreenKeyboard(chatId, "Вы являетесь зарегистрированным пользователем");
                     }
@@ -193,7 +193,7 @@ public class TelegramBot extends TelegramLongPollingBot {
                 }
                 case "Добавить врача" -> {
                     if (isAdmin(chatId)) {
-                        BLOCK_DEFAULT_MESSAGE_VALUE.put(chatId, 5); // техническое поле, не-null значение которого блокирует отправку дефолтных сообщений бота
+                        BLOCK_DEFAULT_MESSAGE_VALUE.put(chatId, 5);
                     } else sendMessageWithScreenKeyboard(chatId, Strings.COMMAND_DOES_NOT_EXIST);
                 }
                 case "Записать пациента к врачу" -> {
@@ -212,10 +212,10 @@ public class TelegramBot extends TelegramLongPollingBot {
              * Не null значение BLOCK_DEFAULT_MESSAGE_VALUE блокирует отправку COMMAND_DOES_NOT_EXIST сообщений ("Такая команда отсутствует"),
              * кроме того, значение Integer определяет логику запуска соответствующих методов
              */
-            if (BLOCK_DEFAULT_MESSAGE_VALUE.get(chatId) == 1) { //         логика регистрации пользователя: после команды /start блокируется отправка дефолтных сообщений
-                LASTNAME.put(chatId, messageText); //                      после чего пользователь начинает поэтапно вводить данные, а hashMap использует в качестве ключей
-                BLOCK_DEFAULT_MESSAGE_VALUE.replace(chatId, 2); //         уникальный идентификатор chatId. Метод userRegistrationSteps "запоминает" пройденный этап регистрации
-                sendMessageWithScreenKeyboard(chatId, "Введите ваше имя и отправьте сообщение"); //                          и переносит пользователя на следующий, количество этапов == 4
+            if (BLOCK_DEFAULT_MESSAGE_VALUE.get(chatId) == 1) {
+                LASTNAME.put(chatId, messageText);
+                BLOCK_DEFAULT_MESSAGE_VALUE.replace(chatId, 2);
+                sendMessageWithScreenKeyboard(chatId, "Введите ваше имя и отправьте сообщение");
             } else if (BLOCK_DEFAULT_MESSAGE_VALUE.get(chatId) == 2) {
                 FIRSTNAME.put(chatId, messageText);
                 BLOCK_DEFAULT_MESSAGE_VALUE.replace(chatId, 3);
@@ -1212,6 +1212,7 @@ public class TelegramBot extends TelegramLongPollingBot {
 
     // Метод отмечает дни отпуска как нерабочие в методе doctorScheduleDaysButtons
     private HashMap<String, String> doctorVacationDaysCheck(Doctor doctor) {
+        // Длинна строки setText больше длинны строки дневной записи к врачу с полностью заполненным временем записи. Т.о, строка setText не позволяет отображать день, как свободный для записи
         String setText = "<------------------------the string with length over doctors work time---------------------------->";
         String[] doctorVacation;
         HashMap<String, String> vacationTime = new HashMap<>();
