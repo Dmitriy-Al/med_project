@@ -500,7 +500,7 @@ public class TelegramBot extends TelegramLongPollingBot {
     }
 
 
-    public void greetMessage(long chatId) {
+    private void greetMessage(long chatId) {
         String text = "Здравствуйте! Зарегистрированные пользователи имеют возможность записи к врачу из меню и просмотр своей записи. Желаете зарегистрироваться?";
         SendMessage sendMessage = receiveCreatedMessage(chatId, text);
         InlineKeyboardMarkup inlineKeyboardMarkup = new InlineKeyboardMarkup();
@@ -607,7 +607,7 @@ public class TelegramBot extends TelegramLongPollingBot {
     }
 
     // кнопки экранной клавиатуры администратора
-    public void adminKeyBoard(SendMessage sendMessage) {
+    private void adminKeyBoard(SendMessage sendMessage) {
         ReplyKeyboardMarkup replyKeyboardMarkup = new ReplyKeyboardMarkup();
         replyKeyboardMarkup.setResizeKeyboard(true);
         List<KeyboardRow> keyboardRows = new ArrayList<>();
@@ -631,7 +631,7 @@ public class TelegramBot extends TelegramLongPollingBot {
     }
 
     // метод отправляет сообщения и устанавливает разную экранную клавиатуру разным группам пользователей
-    public void sendMessageWithScreenKeyboard(long chatId, String text) {
+    private void sendMessageWithScreenKeyboard(long chatId, String text) {
         SendMessage sendMessage = receiveCreatedMessage(chatId, text);
 
         Iterable<User> users = userRepository.findAll();
